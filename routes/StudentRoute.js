@@ -1,0 +1,116 @@
+const express = require("express");
+const router = express.Router();
+const bcrypt = require("bcrypt");
+const { body, validationResult } = require("express-validator");
+const studentdb = require("../models/student");
+const jwt = require('jsonwebtoken');
+const JWT_SECRET = process.env.SECRET_KEY;
+
+
+//registering the user
+router.post("/register",async function (req, res) {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+    try {
+      let user = await studentdb.findOne({ email: req.body.email });
+      if (user) {
+        res.json({
+            status:"error",
+             error: "user already register" });
+      }
+      else{
+        const salt = await bcrypt.genSalt(10);
+        const secPass = await bcrypt.hash(req.body.password, salt);
+        user = await studentdb.create({
+          firstname: req.body.firstname,
+          lastname: req.body.lastname,
+          email: req.body.email,
+          password: secPass,
+        });
+        // console.log(user)
+        const data = {
+          user: {
+            id: user.id,
+          },
+        };
+        // const authtoken = jwt.sign(data, JWT_SECRET);
+        res.json({ 
+          status:"success",
+          data:user,
+         
+         });
+      
+        }}catch (error) {
+          
+          // console.error(error.message);
+          res.status(500).send("Internal Server Error");
+        }
+      }
+      
+);
+
+
+router.post('/login', async (req, res) => {
+    // If there are errors, return Bad request and the errors
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+  
+    const { email, password } = req.body;
+    try {
+      let user = await studentdb.findOne({ email:email });
+      if (!user) {
+      
+        return res.json({
+           status:"error",
+          error: "user not register" 
+          });
+      }
+  
+      const passwordCompare = await bcrypt.compare(password, user.password);
+      if (!passwordCompare) {
+       
+        return res.json({
+          status:"error",
+            error: "password wrong" 
+          });
+      }
+  const dats1=user;
+      const data = {
+        user: {
+          id: user.id
+        }
+      }
+      const authtoken = jwt.sign(email, JWT_SECRET);
+      
+      res.json({ 
+        status:"success", 
+        token:authtoken ,
+        dats1:dats1
+      })
+  
+    } catch (error) {
+      // console.error(error.message);
+      res.status(500).send("Internal Server Error");
+    }
+  
+  });
+
+// ROUTE 3: Get loggedin User Details using: POST "/api/v1/getuser". Login required
+router.get('/getuser/:id',  async (req, res) => {
+
+    try {
+      const id = req.params.id;
+      const user = await studentdb.find({_id:id})
+      res.send(user)
+    } catch (error) {
+      // console.error(error.message);
+      res.status(500).send("Internal Server Error");
+    }
+  })  
+  
+
+module.exports = router;
